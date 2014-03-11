@@ -332,7 +332,7 @@ class _TaggableManager(models.Manager):
         return self.through.lookup_kwargs(self.instance)
 
     @require_instance_manager
-    def add(self, *tags):
+    def add(self, *tags, **through_or_tag_kwargs):
         str_tags = set([
             t
             for t in tags
@@ -346,11 +346,29 @@ class _TaggableManager(models.Manager):
         )
         tag_objs.update(existing)
 
+        tag_fieldnames = [f.name for f in self.through.tag_model()._meta.fields]
+        tag_kwargs = {
+            k: v
+            for k, v in through_or_tag_kwargs.items()
+            if k in tag_fieldnames
+            or (k.endswith('_id') and k[:-3] in tag_fieldnames)
+        }
+
         for new_tag in str_tags - set(t.name for t in existing):
-            tag_objs.add(self.through.tag_model().objects.create(name=new_tag))
+            tag_objs.add(self.through.tag_model().objects.create(name=new_tag,
+                                                                 **tag_kwargs))
+
+        through_fieldnames = [f.name for f in self.through._meta.fields]
+        through_kwargs = {
+            k: v
+            for k, v in through_or_tag_kwargs.items()
+            if k in through_fieldnames
+            or (k.endswith('_id') and k[:-3] in through_fieldnames)
+        }
+        through_kwargs.update(**self._lookup_kwargs())
 
         for tag in tag_objs:
-            self.through.objects.get_or_create(tag=tag, **self._lookup_kwargs())
+            self.through.objects.get_or_create(tag=tag, **through_kwargs)
 
     @require_instance_manager
     def names(self):
@@ -361,9 +379,9 @@ class _TaggableManager(models.Manager):
         return self.get_query_set().values_list('slug', flat=True)
 
     @require_instance_manager
-    def set(self, *tags):
+    def set(self, *tags, **through_or_tag_kwargs):
         self.clear()
-        self.add(*tags)
+        self.add(*tags, **through_or_tag_kwargs)
 
     @require_instance_manager
     def remove(self, *tags):
