@@ -13,14 +13,14 @@ from django.utils.encoding import force_text
 
 from django.contrib.contenttypes.models import ContentType
 
-from taggit.managers import TaggableManager, _model_name
+from taggit.managers import TaggableManager, _TaggableManager, _model_name
 from taggit.models import Tag, TaggedItem
 from .forms import (FoodForm, DirectFoodForm, CustomPKFoodForm,
     OfficialFoodForm)
 from .models import (Food, Pet, HousePet, DirectFood, DirectPet,
     DirectHousePet, TaggedPet, CustomPKFood, CustomPKPet, CustomPKHousePet,
     TaggedCustomPKPet, OfficialFood, OfficialPet, OfficialHousePet,
-    OfficialThroughModel, OfficialTag, Photo, Movie, Article)
+    OfficialThroughModel, OfficialTag, Photo, Movie, Article, CustomManager)
 from taggit.utils import parse_tags, edit_string_for_tags
 
 
@@ -80,7 +80,6 @@ class TagModelTestCase(BaseTaggingTransactionTestCase):
         self.assert_tags_equal(a.tags.all(), [
             "category-awesome",
             "category-release",
-            "category-awesome-1"
         ], attr="slug")
 
 class TagModelDirectTestCase(TagModelTestCase):
@@ -141,20 +140,20 @@ class TaggableManagerTestCase(BaseTaggingTestCase):
         ContentType.objects.get_for_model(self.food_model)
         apple = self.food_model.objects.create(name="apple")
         #   1  query to see which tags exist
-        # + 3  queries to create the tags.
-        # + 6  queries to create the intermediary things (including SELECTs, to
+        # + x  queries to create the tags.
+        # + x  queries to create the intermediary things (including SELECTs, to
         #      make sure we don't double create.
-        # + 12 on Django 1.6 for save points.
-        queries = 22
+        # + 16 on Django 1.6 for save points.
+        queries = 25
         if django.VERSION < (1,6):
-            queries -= 12
+            queries -= 16
         self.assertNumQueries(queries, apple.tags.add, "red", "delicious", "green")
 
         pear = self.food_model.objects.create(name="pear")
         #   1 query to see which tags exist
-        # + 4 queries to create the intermeidary things (including SELECTs, to
+        # + x queries to create the intermeidary things (including SELECTs, to
         #     make sure we dont't double create.
-        # + 4 on Django 1.6 for save points.
+        # + x on Django 1.6 for save points.
         queries = 9
         if django.VERSION < (1,6):
             queries -= 4
@@ -355,7 +354,6 @@ class TaggableManagerTestCase(BaseTaggingTestCase):
                 'apple': set(['1', '2'])
             })
 
-
 class TaggableManagerDirectTestCase(TaggableManagerTestCase):
     food_model = DirectFood
     pet_model = DirectPet
@@ -391,6 +389,16 @@ class TaggableManagerOfficialTestCase(TaggableManagerTestCase):
 
         self.assertEqual(apple, self.food_model.objects.get(tags__official=False))
 
+class TaggableManagerInitializationTestCase(TaggableManagerTestCase):
+    """Make sure manager override defaults and sets correctly."""
+    food_model = Food
+    custom_manager_model = CustomManager
+
+    def test_default_manager(self):
+        self.assertEqual(self.food_model.tags.__class__, _TaggableManager)
+
+    def test_custom_manager(self):
+        self.assertEqual(self.custom_manager_model.tags.__class__, CustomManager.Foo)
 
 class TaggableFormTestCase(BaseTaggingTestCase):
     form_class = FoodForm
