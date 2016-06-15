@@ -74,9 +74,12 @@ class TagBase(models.Model):
             return super(TagBase, self).save(*args, **kwargs)
 
     def slugify(self, tag, i=None):
-        slug = default_slugify(tag)
-        if i is not None:
-            slug += "_%d" % i
+        from articles.utils import slugify_unique
+        slugify_unique(self, tag)
+        return self.slug
+        # slug = default_slugify(tag)
+        # if i is not None:
+        #     slug += "_%d" % i
         return slug
 
 
